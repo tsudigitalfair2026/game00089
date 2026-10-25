@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>わんわんシューティング</title>
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    -webkit-tap-highlight-color:transparent;
+}
+html,body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    touch-action:none;
+    font-family:sans-serif;
+    background:#87ceeb;
+}
+.screen{
+    width:100%;
+    height:100%;
+    display:none;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+}
+.screen.active{
+    display:flex;
+}
+h1{
+    font-size:2rem;
+    margin-bottom:20px;
+    text-align:center;
+}
+p{
+    text-align:center;
+    line-height:1.6;
+    margin-bottom:15px;
+}
+button{
+    min-width:180px;
+    min-height:60px;
+    border:none;
+    border-radius:16px;
+    font-size:1.2rem;
+    background:#ff9800;
+    color:#fff;
+    font-weight:bold;
+}
+#gameScreen{
+    justify-content:flex-start;
+    padding:0;
+}
+#hud{
+    width:100%;
+    display:flex;
+    justify-content:space-between;
+    padding:12px;
+    background:#ffffffdd;
+    font-size:1.1rem;
+    font-weight:bold;
+}
+#gameArea{
+    position:relative;
+    flex:1;
+    width:100%;
+    overflow:hidden;
+    background:linear-gradient(#87ceeb,#d8f4ff);
+}
+#player{
+    position:absolute;
+    font-size:50px;
+    user-select:none;
+    z-index:5;
+}
+.bullet{
+    position:absolute;
+    font-size:24px;
+}
+.enemy{
+    position:absolute;
+    user-select:none;
+}
+#rank{
+    font-size:2rem;
+    margin:15px 0;
+    color:#e91e63;
+    font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<div id="startScreen" class="screen active">
+    <h1>🐶 わんわんシューティング</h1>
+    <p>
+        いぬを左右にドラッグして動かそう！<br>
+        自動で骨を発射するよ。<br>
+        金色のレアねこは高得点！<br>
+        60秒で高得点を目指そう！
+    </p>
+    <button id="startBtn">スタート</button>
+</div>
+
+<div id="gameScreen" class="screen">
+    <div id="hud">
+        <div>スコア: <span id="score">0</span></div>
+        <div>残り: <span id="time">60</span>秒</div>
+    </div>
+    <div id="gameArea">
+        <div id="player">🐶</div>
+    </div>
+</div>
+
+<div id="resultScreen" class="screen">
+    <h1>ゲーム終了</h1>
+    <p>最終スコア</p>
+    <h2 id="finalScore">0</h2>
+    <div id="rank">C</div>
+    <button id="restartBtn">もう一度遊ぶ</button>
+</div>
+
+<script>
+const startScreen=document.getElementById("startScreen");
+const gameScreen=document.getElementById("gameScreen");
+const resultScreen=document.getElementById("resultScreen");
+
+const startBtn=document.getElementById("startBtn");
+const restartBtn=document.getElementById("restartBtn");
+
+const gameArea=document.getElementById("gameArea");
+const player=document.getElementById("player");
+
+const scoreEl=document.getElementById("score");
+const timeEl=document.getElementById("time");
+const finalScore=document.getElementById("finalScore");
+const rankEl=document.getElementById("rank");
+
+let score=0;
+let timeLeft=60;
+let gameRunning=false;
+
+let playerX=0;
+let playerY=0;
+
+let bullets=[];
+let enemies=[];
+
+let gameLoop;
+let enemyTimer;
+let bulletTimer;
+let countdown;
+
+function showScreen(screen){
+    startScreen.classList.remove("active");
+    gameScreen.classList.remove("active");
+    resultScreen.classList.remove("active");
+    screen.classList.add("active");
+}
+
+function startGame(){
+    score=0;
+    timeLeft=60;
+
+    scoreEl.textContent=score;
+    timeEl.textContent=timeLeft;
+
+    bullets.forEach(b=>b.remove());
+    enemies.forEach(e=>e.remove());
+
+    bullets=[];
+    enemies=[];
+
+    showScreen(gameScreen);
+
+    const areaW=gameArea.clientWidth;
+    const areaH=gameArea.clientHeight;
+
+    playerX=areaW/2-25;
+    playerY=areaH-90;
+
+    player.style.left=playerX+"px";
+    player.style.top=playerY+"px";
+
+    gameRunning=true;
+
+    bulletTimer=setInterval(createBullet,300);
+    enemyTimer=setInterval(createEnemy,800);
+
+    countdown=setInterval(()=>{
+        timeLeft--;
+        timeEl.textContent=timeLeft;
+
+        if(timeLeft<=0){
+            endGame();
+        }
+    },1000);
+
+    gameLoop=requestAnimationFrame(update);
+}
+
+function createBullet(){
+    if(!gameRunning)return;
+
+    const b=document.createElement("div");
+    b.className="bullet";
+    b.textContent="🦴";
+
+    const x=playerX+15;
+    const y=playerY-10;
+
+    b.style.left=x+"px";
+    b.style.top=y+"px";
+
+    gameArea.appendChild(b);
+
+    bullets.push({
+        el:b,
+        x:x,
+        y:y
+    });
+}
+
+function createEnemy(){
+    if(!gameRunning)return;
+
+    const e=document.createElement("div");
+    e.className="enemy";
+
+    const isGold=Math.random()<0.12;
+
+    e.textContent=isGold ? "😺" : "🐱";
+    e.style.fontSize=isGold ? "52px" : "42px";
+
+    const maxX=gameArea.clientWidth-60;
+    const x=Math.random()*maxX;
+
+    e.style.left=x+"px";
+    e.style.top="-60px";
+
+    gameArea.appendChild(e);
+
+    enemies.push({
+        el:e,
+        x:x,
+        y:-60,
+        speed:isGold ? 3.5 : (2+Math.random()*2),
+        gold:isGold,
+        score:isGold ? 50 : 10
+    });
+}
+
+function update(){
+    if(!gameRunning)return;
+
+    for(let i=bullets.length-1;i>=0;i--){
+        const b=bullets[i];
+
+        b.y-=8;
+
+        if(b.y<-50){
+            b.el.remove();
+            bullets.splice(i,1);
+            continue;
+        }
+
+        b.el.style.top=b.y+"px";
+    }
+
+    for(let i=enemies.length-1;i>=0;i--){
+        const e=enemies[i];
+
+        e.y+=e.speed;
+
+        if(e.y>gameArea.clientHeight){
+            e.el.remove();
+            enemies.splice(i,1);
+
+            score=Math.max(0,score-(e.gold?10:5));
+            scoreEl.textContent=score;
+            continue;
+        }
+
+        e.el.style.top=e.y+"px";
+    }
+
+    for(let i=enemies.length-1;i>=0;i--){
+        const e=enemies[i];
+
+        for(let j=bullets.length-1;j>=0;j--){
+            const b=bullets[j];
+
+            if(
+                Math.abs((e.x+20)-(b.x+10))<35 &&
+                Math.abs((e.y+20)-(b.y+10))<35
+            ){
+                e.el.remove();
+                b.el.remove();
+
+                enemies.splice(i,1);
+                bullets.splice(j,1);
+
+                score+=e.score;
+                scoreEl.textContent=score;
+                break;
+            }
+        }
+    }
+
+    gameLoop=requestAnimationFrame(update);
+}
+
+function endGame(){
+    gameRunning=false;
+
+    clearInterval(enemyTimer);
+    clearInterval(bulletTimer);
+    clearInterval(countdown);
+
+    cancelAnimationFrame(gameLoop);
+
+    finalScore.textContent=score;
+
+    let rank="C";
+
+    if(score>=500) rank="S";
+    else if(score>=350) rank="A";
+    else if(score>=200) rank="B";
+
+    rankEl.textContent="ランク " + rank;
+
+    showScreen(resultScreen);
+}
+
+function movePlayer(clientX){
+    const rect=gameArea.getBoundingClientRect();
+
+    playerX=clientX-rect.left-25;
+
+    if(playerX<0) playerX=0;
+    if(playerX>rect.width-50) playerX=rect.width-50;
+
+    player.style.left=playerX+"px";
+}
+
+gameArea.addEventListener("touchstart",(e)=>{
+    if(!gameRunning)return;
+    movePlayer(e.touches[0].clientX);
+},{passive:false});
+
+gameArea.addEventListener("touchmove",(e)=>{
+    e.preventDefault();
+    if(!gameRunning)return;
+    movePlayer(e.touches[0].clientX);
+},{passive:false});
+
+gameArea.addEventListener("mousedown",(e)=>{
+    if(!gameRunning)return;
+
+    movePlayer(e.clientX);
+
+    function drag(ev){
+        movePlayer(ev.clientX);
+    }
+
+    function up(){
+        window.removeEventListener("mousemove",drag);
+        window.removeEventListener("mouseup",up);
+    }
+
+    window.addEventListener("mousemove",drag);
+    window.addEventListener("mouseup",up);
+});
+
+startBtn.addEventListener("click",startGame);
+restartBtn.addEventListener("click",startGame);
+</script>
+
+</body>
+</html>
